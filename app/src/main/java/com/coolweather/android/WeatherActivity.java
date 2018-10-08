@@ -4,10 +4,14 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Build;
 import android.preference.PreferenceManager;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -23,6 +27,7 @@ import com.coolweather.android.util.Utility;
 import org.w3c.dom.Text;
 
 import java.io.IOException;
+import java.security.PublicKey;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -43,6 +48,10 @@ public class WeatherActivity extends AppCompatActivity {
     private TextView sportText;
 
     private ImageView bingPicImg;
+    public SwipeRefreshLayout swipeRefresh;
+    //滑动菜单
+    public DrawerLayout drawerLayout;
+    private Button navButton;
 
     //获取一些控件的实例
     @Override
@@ -72,19 +81,43 @@ public class WeatherActivity extends AppCompatActivity {
 
         bingPicImg = (ImageView) findViewById(R.id.bing_pic_img);
 
+        //下拉刷新
+        swipeRefresh = (SwipeRefreshLayout) findViewById(R.id.swipe_refresh);
+        //下拉刷新进度条的颜色
+        swipeRefresh.setColorSchemeResources(R.color.colorPrimary);
+        //侧滑动菜单
+        drawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
+        navButton = (Button) findViewById(R.id.nav_button);
+
+        navButton.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v) {
+                drawerLayout.openDrawer(Gravity.START);     //left是绝对的左边，start会根据不同的国家习惯改变。
+            }
+        });
+
         //倾向于保存用户偏好设置比如某个checkbox的选择状态，用户登录的状态、配置信息，实现记住密码功能等等，都是以键值对的形式进行的文件读取
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         String weatherString = prefs.getString("weather", null);
+        final String weatherId;
         if (weatherString != null) {
             //有缓存的话直接解析
             Weather weather = Utility.handleWeatherResponse(weatherString);
+            weatherId = weather.basic.weatherId;
             showWeatherInfo(weather);
         }else {
             //无缓存时，去服务器查询
-            String weatherId = getIntent().getStringExtra("weather_id");
+            weatherId = getIntent().getStringExtra("weather_id");
             weatherLayout.setVisibility(View.INVISIBLE);        //先将Scrollview隐藏
             requestWeather(weatherId);
         }
+        //下拉监听器
+        swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                requestWeather(weatherId);
+            }
+        });
         //从缓存中读取背景图片
         String bingPic = prefs.getString("bing_pic", null);
         if (bingPic != null) {
@@ -95,7 +128,7 @@ public class WeatherActivity extends AppCompatActivity {
         }
     }
 
-    private void requestWeather(final String weatherId) {
+    public void requestWeather(final String weatherId) {
         String weatherUrl = "http://guolin.tech/api/weather?cityid=" + weatherId + "&key=f9fdebae374c449f9a0f38f441420ec0";
         HttpUtil.sendOkHttpRequest(weatherUrl, new Callback() {
             @Override
@@ -104,6 +137,8 @@ public class WeatherActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
+                        //下拉刷新结束，隐藏刷新进度条
+                        swipeRefresh.setRefreshing(false);
                     }
                 });
             }
@@ -124,6 +159,8 @@ public class WeatherActivity extends AppCompatActivity {
                         }else {
                             Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
                         }
+                        //下拉刷新结束
+                        swipeRefresh.setRefreshing(false);
                     }
                 });
             }
